@@ -19,13 +19,25 @@
 
 @property (nonatomic, strong) UILabel *scoreLabel;
 
+@property (nonatomic, strong) UIButton *startBtn;
+
+@property (nonatomic, strong) UIButton *leftBtn;
+
+@property (nonatomic, strong) UIButton *rightBtn;
+
+@property (nonatomic, strong) UIButton *downBtn;
+
+@property (nonatomic, strong) UIButton *rotateBtn;
+
 @property (nonatomic, strong) NSMutableArray *dataArray;
 
 @property (nonatomic, strong) NSMutableArray *tetrisArray;
 
 @property (nonatomic, strong) dispatch_source_t timer;
 
-@property (nonatomic, assign) NSInteger offsetY;
+@property (nonatomic, assign) NSInteger offsetX;
+
+@property (nonatomic, assign) NSInteger rotateOffset;
 
 @end
 
@@ -43,9 +55,7 @@
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     
-    [self getData];
-    
-    [self startTimer];
+    [self initData];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
@@ -54,7 +64,7 @@
 }
 
 //MARK: - data
-- (void)getData {
+- (void)initData {
     self.dataArray = [[NSMutableArray alloc] init];
     NSInteger count = 10*20;
     for (NSInteger i = 0; i < count; i++) {
@@ -63,8 +73,10 @@
     }
     
     self.tetrisArray = [[NSMutableArray alloc] init];
+}
+
+- (void)addData {
     TestModel *model = [[TestModel alloc] init];
-    model.type = TetrisTypeI;
     [self.tetrisArray addObject:model];
 }
 
@@ -76,21 +88,99 @@
         [self.dataArray addObject:color];
     }
     
-    for (NSInteger i = 0, count = self.tetrisArray.count; i < count; i++) {
+    if (self.tetrisArray.count <= 0) return;
+    
+    for (NSInteger i = 0, count = self.tetrisArray.count-1; i < count; i++) {
         TestModel *model = self.tetrisArray[i];
-        model.offsetY = 1;
         for (NSValue *pointValue in model.points) {
             CGPoint point = [pointValue CGPointValue];
-            if (point.x+point.y*10 >= self.dataArray.count) {
-                [self stopTimer];
-                
-            } else {
-                [self.dataArray replaceObjectAtIndex:(point.x+point.y*10) withObject:model.color];
+            [self.dataArray replaceObjectAtIndex:(point.x+point.y*10) withObject:model.color];
+        }
+    }
+    
+    TestModel *model = [self.tetrisArray lastObject];
+    if (self.offsetX != 0) {
+        model.offsetX = self.offsetX;
+        BOOL isModelLegalX = [self checkDataWithModel:model];
+        if (!isModelLegalX) {
+            model.offsetX = -self.offsetX;
+        }
+        self.offsetX = 0;
+    }
+    
+    model.offsetY = 1;
+    BOOL isModelLegalY = [self checkDataWithModel:model];
+    if (!isModelLegalY) {
+        model.offsetY = -1;
+        [self addData];
+    }
+    
+    for (NSValue *pointValue in model.points) {
+        CGPoint point = [pointValue CGPointValue];
+        [self.dataArray replaceObjectAtIndex:(point.x+point.y*10) withObject:model.color];
+    }
+    
+    if (!isModelLegalY) {
+        [self checkDataIfRemoveLine];
+    }
+    
+    [self.mainCollectionView reloadData];
+}
 
+- (BOOL)checkDataWithModel:(TestModel *)model {
+    if (!model) return NO;
+    
+    BOOL isModelLegal = YES;
+    for (NSValue *pointValue in model.points) {
+        CGPoint point = [pointValue CGPointValue];
+        if (point.x+point.y*10 >= self.dataArray.count) {
+            isModelLegal = NO;
+            
+        } else {
+            UIColor *color = self.dataArray[(int)(point.x+point.y*10)];
+            if (!CGColorEqualToColor(color.CGColor, kRGB(41, 41, 41).CGColor)) {
+                isModelLegal = NO;
             }
         }
     }
-    [self.mainCollectionView reloadData];
+    return isModelLegal;
+}
+
+- (void)checkDataIfRemoveLine {
+    for (NSInteger i = 19; i >= 0; i--) {
+        
+        BOOL isFullLine = YES;
+        for (NSInteger j = 0; j < 10; j++) {
+            
+            UIColor *color = self.dataArray[j+i*10];
+            if (CGColorEqualToColor(color.CGColor, kRGB(41, 41, 41).CGColor)) {
+                isFullLine = NO;
+            }
+        }
+        
+        if (isFullLine) {
+            if (i > 0) {
+                for (NSInteger k = i; k >= 0; k--) {
+                    for (NSInteger j = 0; j < 10; j++) {
+                        if (k > 0) {
+                            UIColor *color = self.dataArray[j+(k-1)*10];
+                            [self.dataArray replaceObjectAtIndex:(j+k*10) withObject:color];
+                            
+                        } else {
+                            [self.dataArray replaceObjectAtIndex:(j+k*10) withObject:kRGB(41, 41, 41)];
+
+                        }
+                    }
+                }
+            } else {
+                for (NSInteger j = 0; j < 10; j++) {
+                    [self.dataArray replaceObjectAtIndex:(j+i*10) withObject:kRGB(41, 41, 41)];
+                }
+            }
+            i++;
+        }
+        
+    }
 }
 
 //MARK: - private methods
@@ -98,11 +188,40 @@
     [self dismissViewControllerAnimated:YES completion:nil];
 }
 
+- (void)startAction:(id)sender {
+    self.startBtn.hidden = YES;
+    
+    self.rotateBtn.hidden = NO;
+    self.leftBtn.hidden = NO;
+    self.rightBtn.hidden = NO;
+    self.downBtn.hidden = NO;
+
+    [self addData];
+    [self startTimer];
+}
+
+- (void)leftAction:(id)sender {
+    self.offsetX --;
+}
+
+- (void)rightAction:(id)sender {
+    self.offsetX ++;
+
+}
+
+- (void)downAction:(id)sender {
+    
+}
+
+- (void)rotateAction:(id)sender {
+    
+}
+
 //MARK: - timer
 - (void)startTimer {
     dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
     self.timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
-    dispatch_source_set_timer(self.timer, dispatch_walltime(NULL, 0), 1.0*NSEC_PER_SEC, 0);
+    dispatch_source_set_timer(self.timer, dispatch_walltime(NULL, 0), 0.2*NSEC_PER_SEC, 0);
     dispatch_source_set_event_handler(self.timer, ^{
         dispatch_async(dispatch_get_main_queue(), ^{
             [self refreshData];
@@ -188,9 +307,94 @@
     [self.view addSubview:levelDescLabel];
     [levelDescLabel mas_makeConstraints:^(MASConstraintMaker *make) {
         make.left.equalTo(self.mainCollectionView.mas_safeAreaLayoutGuideRight).offset(10);
-        make.top.equalTo(self.mainCollectionView.mas_safeAreaLayoutGuideTop);
+        make.top.equalTo(self.previewCollectionView.mas_safeAreaLayoutGuideBottom).offset(10);
         make.width.mas_lessThanOrEqualTo(itemWidth*6+10+1*5);
     }];
+    
+    self.startBtn = ({
+        UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
+        [btn setTitle:@"Start" forState:UIControlStateNormal];
+        [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        btn.titleLabel.font = [UIFont systemFontOfSize:14];
+        [btn addTarget:self action:@selector(startAction:) forControlEvents:UIControlEventTouchUpInside];
+        btn;
+    });
+    [self.view addSubview:self.startBtn];
+    [self.startBtn mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.centerX.equalTo(self.view.mas_safeAreaLayoutGuideLeft).offset(viewWidth/2.0);
+        make.top.equalTo(self.mainCollectionView.mas_safeAreaLayoutGuideBottom).offset(20);
+        make.height.mas_equalTo(45);
+        make.width.mas_equalTo(100);
+    }];
+    self.startBtn.hidden = NO;
+    
+    self.rotateBtn = ({
+        UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
+        [btn setTitle:@"Rotate" forState:UIControlStateNormal];
+        [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        btn.titleLabel.font = [UIFont systemFontOfSize:14];
+        [btn addTarget:self action:@selector(rotateAction:) forControlEvents:UIControlEventTouchUpInside];
+        btn;
+    });
+    [self.view addSubview:self.rotateBtn];
+    [self.rotateBtn mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.centerX.equalTo(self.view.mas_safeAreaLayoutGuideLeft).offset(viewWidth/2.0);
+        make.top.equalTo(self.mainCollectionView.mas_safeAreaLayoutGuideBottom).offset(20);
+        make.height.mas_equalTo(45);
+        make.width.mas_equalTo(100);
+    }];
+    self.rotateBtn.hidden = YES;
+
+    self.leftBtn = ({
+        UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
+        [btn setTitle:@"Left" forState:UIControlStateNormal];
+        [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        btn.titleLabel.font = [UIFont systemFontOfSize:14];
+        [btn addTarget:self action:@selector(leftAction:) forControlEvents:UIControlEventTouchUpInside];
+        btn;
+    });
+    [self.view addSubview:self.leftBtn];
+    [self.leftBtn mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.right.equalTo(self.rotateBtn.mas_safeAreaLayoutGuideLeft).offset(20);
+        make.top.equalTo(self.rotateBtn.mas_safeAreaLayoutGuideBottom).offset(20);
+        make.height.mas_equalTo(45);
+        make.width.mas_equalTo(100);
+    }];
+    self.leftBtn.hidden = YES;
+    
+    self.downBtn = ({
+        UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
+        [btn setTitle:@"Down" forState:UIControlStateNormal];
+        [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        btn.titleLabel.font = [UIFont systemFontOfSize:14];
+        [btn addTarget:self action:@selector(downAction:) forControlEvents:UIControlEventTouchUpInside];
+        btn;
+    });
+    [self.view addSubview:self.downBtn];
+    [self.downBtn mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.centerX.equalTo(self.view.mas_safeAreaLayoutGuideLeft).offset(viewWidth/2.0);
+        make.top.equalTo(self.rotateBtn.mas_safeAreaLayoutGuideBottom).offset(20);
+        make.height.mas_equalTo(45);
+        make.width.mas_equalTo(100);
+    }];
+    self.downBtn.hidden = YES;
+    
+    self.rightBtn = ({
+        UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
+        [btn setTitle:@"Right" forState:UIControlStateNormal];
+        [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        btn.titleLabel.font = [UIFont systemFontOfSize:14];
+        [btn addTarget:self action:@selector(rightAction:) forControlEvents:UIControlEventTouchUpInside];
+        btn;
+    });
+    [self.view addSubview:self.rightBtn];
+    [self.rightBtn mas_makeConstraints:^(MASConstraintMaker *make) {
+        make.left.equalTo(self.rotateBtn.mas_safeAreaLayoutGuideRight).offset(-20);
+        make.top.equalTo(self.rotateBtn.mas_safeAreaLayoutGuideBottom).offset(20);
+        make.height.mas_equalTo(45);
+        make.width.mas_equalTo(100);
+    }];
+    self.rightBtn.hidden = YES;
 }
 
 //MARK: - getter

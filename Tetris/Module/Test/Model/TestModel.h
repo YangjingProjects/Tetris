@@ -10,6 +10,7 @@
 #import <UIKit/UIKit.h>
 
 typedef NS_ENUM(NSInteger, TetrisType) {
+    TetrisTypeUnknow,
     TetrisTypeI = 1,
     TetrisTypeL,
     TetrisTypeJ,
@@ -19,25 +20,18 @@ typedef NS_ENUM(NSInteger, TetrisType) {
     TetrisTypeT
 };
 
-typedef NS_ENUM(NSInteger, RotateType) {
-    RotateTypeUp = 1,
-    RotateTypeLeft,
-    RotateTypeRight,
-    RotateTypeDown
-};
-
 @interface TestModel : NSObject
 
 /**
  *  方块类型
  *  俄罗斯方块分7种类型，每种类型由4个小方块组成（这里用大写字母表示各种类型）
  */
-@property (nonatomic, assign) TetrisType type;
+@property (nonatomic, assign, readonly) TetrisType type;
 
 /**
  *  旋转类型
  */
-@property (nonatomic, assign) RotateType rotateType;
+@property (nonatomic, assign) NSInteger rotateOffset;
 
 /**
  *  方块坐标向下偏移量
